@@ -1,3 +1,4 @@
 #! /bin/bash
-avr-as -mmcu=atmega128 cp_test.asm -o cp_test.elf
+avr-as -mmcu=atmega128 cp_test.asm -o cp_test.o
+avr-gcc -mmcu=atmega128 -o cp_test.elf cp_test.o
 avr-objcopy -O binary cp_test.elf cp_test.bin

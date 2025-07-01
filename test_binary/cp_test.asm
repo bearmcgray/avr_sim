@@ -1,4 +1,6 @@
-start:
+.org 0
+.global main
+main:
 sbi 0x11,4
 clc
 ldi r16,0xff
