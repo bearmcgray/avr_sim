@@ -19,8 +19,6 @@ class Core():
 	def __init__(self):
 		self.pm = self.loadProgramMemory()
 		self.SR = SREG()
-		self.Rs = [0 for _ in range(32)]
-		self.IOs = [0 for _ in range(64)]
 		RAM_SIZE = (1 << 12) + 0x100
 		self.RAM = [0 for _ in range(RAM_SIZE)]
 		self.pc = 0
@@ -39,7 +37,8 @@ class Core():
 		return words
 
 	def debug(self, *args):
-		print(hex(self.pc*2), *args)
+		hexedArgs = [hex(arg) if type(arg) == int else arg for arg in args ]
+		print(hex(self.pc*2), *hexedArgs)
 		pass
 
 
@@ -54,7 +53,7 @@ class Core():
 				k += lh(opcode) << 17
 				k += b(opcode, 0) << 16
 				k += self.pm[self.pc + 1]
-				self.debug('jmp', k)
+				self.debug('jmp', k * 2)
 				self.pc = k - 1
 				self.skipCycleCounter = 2
 			elif opcode & 0xFC00 == 0x2400: # EOR, p. 71
@@ -62,12 +61,12 @@ class Core():
 				r += ll(opcode)
 				d = b(opcode, 8) << 4
 				d += lh(opcode)
-				R = self.Rs[r] ^ self.Rs[d]
+				R = self.RAM[r] ^ self.RAM[d]
 				self.SR.V = 0
 				self.SR.N = b(R, 7)
 				self.SR.S = self.SR.N ^ self.SR.V 
 				self.SR.Z = 1 if R == 0 else 0
-				self.Rs[d] = R
+				self.RAM[d] = R
 				self.debug('eor', r, d)
 			elif opcode & 0xF800 == 0xB800: # OUT, p. 108
 				r = b(opcode, 8) << 4
@@ -75,14 +74,14 @@ class Core():
 				d = b(opcode, 10) << 5
 				d += b(opcode, 9) << 4
 				d += ll(opcode)
-				self.IOs[d] = self.Rs[r]
+				self.RAM[d + 0x20] = self.RAM[r]
 				self.debug('out', r, d)
 			elif opcode & 0xF000 == 0xE000: # LDI, p. 91
 				r = hl(opcode) << 4
 				r += ll(opcode)
 				d = lh(opcode)
 				d += 16
-				self.Rs[d] = r
+				self.RAM[d] = r
 				self.debug('ldi', r, d)
 			elif opcode & 0xF000 == 0xC000: # RJMP, p. 114
 				r = hl(opcode) << 8
@@ -94,13 +93,13 @@ class Core():
 					r = -r
 				self.pc += r
 				self.skipCycleCounter = 1
-				self.debug('rjmp', r)
+				self.debug('rjmp', r * 2)
 			elif opcode & 0xF000 == 0x3000: # CPI, p. 63
 				k = hl(opcode) << 4
 				k += ll(opcode)
 				d = lh(opcode)
 				d += 16
-				Rd = self.Rs[d]
+				Rd = self.RAM[d]
 				R = Rd - k
 				self.SR.H = (~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3)) & 1
 				self.SR.V = (b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7)) & 1
@@ -114,8 +113,8 @@ class Core():
 				r += ll(opcode)
 				d = b(opcode, 8) << 4
 				d += lh(opcode)
-				Rr = self.Rs[r]
-				Rd = self.Rs[d]
+				Rr = self.RAM[r]
+				Rd = self.RAM[d]
 				R = Rd - Rr - self.SR.C
 				self.SR.H = (~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3)) & 1
 				self.SR.V = (b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7)) & 1
@@ -140,25 +139,25 @@ class Core():
 				self.debug('brne', k)
 			elif opcode & 0xFE0E == 0x940E: # CALL, p. 47
 				k = self.pm[self.pc + 1]
-				sp = self.IOs[self.sph] << 8
-				sp += self.IOs[self.spl]
+				sp = self.RAM[self.sph + 0x20] << 8
+				sp += self.RAM[self.spl + 0x20]
 				
 				self.RAM[sp] = hbyte(self.pc + 2)
 				self.RAM[sp - 1] = lbyte(self.pc + 2)
 				sp += -2
-				self.IOs[self.sph] = hbyte(sp)
-				self.IOs[self.spl] = lbyte(sp)
+				self.RAM[self.sph + 0x20] = hbyte(sp)
+				self.RAM[self.spl + 0x20] = lbyte(sp)
 
 				self.skipCycleCounter = 2
 				self.pc = k - 1
-				self.debug('call', hex(k*2))
+				self.debug('call', k * 2)
 			elif opcode & 0xFF00 == 0x9A00: # SBI, p. 120
 				a = lh(opcode) << 1
 				a += b(opcode, 3)
 				d = b(opcode, 2) << 2
 				d += b(opcode, 1) << 1
 				d += b(opcode, 0)
-				self.Rs[a] |= (1 << d)
+				self.RAM[a] |= (1 << d)
 				self.debug('sbi', a, d)
 			elif opcode & 0xFFFF == 0x9488: # CLC, p. 50
 				self.SR.C = 0
@@ -168,8 +167,8 @@ class Core():
 				r += ll(opcode)
 				d = b(opcode, 8) << 4
 				d += lh(opcode)
-				Rr = self.Rs[r]
-				Rd = self.Rs[d]
+				Rr = self.RAM[r]
+				Rd = self.RAM[d]
 				R = Rd - Rr
 				self.SR.H = (~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3)) & 1
 				self.SR.V = (b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7)) & 1
@@ -184,7 +183,7 @@ class Core():
 				a = b(opcode, 10) << 5
 				a += b(opcode, 9) << 4
 				a += ll(opcode)
-				self.Rs[d] = self.IOs[a]
+				self.RAM[d] = self.RAM[a + 0x20]
 				self.debug('in', a, d)
 			elif opcode & 0xFE08 == 0xFE00: # SBRS, p. 126
 				r = b(opcode, 8) << 4
@@ -192,7 +191,7 @@ class Core():
 				d = b(opcode, 2) << 2
 				d += b(opcode, 1) << 1
 				d += b(opcode, 0)
-				if b(self.Rs[r], d) == 1:
+				if b(self.RAM[r], d) == 1:
 					nopcode = self.pm[self.pc + 1]
 					# check if the next opcode is two word 
 					if nopcode & 0xFE0E == 0x940E or nopcode & 0xFE0E == 0x940C:
