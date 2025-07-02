@@ -1,1 +1,5 @@
 __pycache__
+/test_binary/*.bin
+/test_binary/*.elf
+/test_binary/*.lst
+/test_binary/*.o
