@@ -1,26 +1,22 @@
 from utils import *
 		
-class SREG():
-	"""Status Register"""
-	def __init__(self):
-		self.C = 0
-		self.Z = 0
-		self.N = 0
-		self.V = 0
-		self.S = 0
-		self.H = 0
-		self.T = 0
-		self.I = 0
-
-
-
-
 class Core():
 	def __init__(self):
 		self.pm = self.loadProgramMemory()
-		self.SR = SREG()
+		
+		self.SREG = 0x5F
+		self.srC = 0
+		self.srZ = 1
+		self.srN = 2
+		self.srV = 3
+		self.srS = 4
+		self.srH = 5
+		self.srT = 6
+		self.srI = 7
+
 		RAM_SIZE = (1 << 12) + 0x100
 		self.RAM = [0 for _ in range(RAM_SIZE)]
+		
 		self.pc = 0
 		self.sph = 62
 		self.spl = 61
@@ -62,10 +58,13 @@ class Core():
 				d = b(opcode, 8) << 4
 				d += lh(opcode)
 				R = self.RAM[r] ^ self.RAM[d]
-				self.SR.V = 0
-				self.SR.N = b(R, 7)
-				self.SR.S = self.SR.N ^ self.SR.V 
-				self.SR.Z = 1 if R == 0 else 0
+				SR = self.RAM[self.SREG]
+				SR = updb(SR, self.srV, 0)
+				SR = updb(SR, self.srN, b(R, 7))
+				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+				self.RAM[self.SREG] = SR
+				
 				self.RAM[d] = R
 				self.debug('eor', r, d)
 			elif opcode & 0xF800 == 0xB800: # OUT, p. 108
@@ -101,12 +100,15 @@ class Core():
 				d += 16
 				Rd = self.RAM[d]
 				R = Rd - k
-				self.SR.H = (~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3)) & 1
-				self.SR.V = (b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7)) & 1
-				self.SR.N = b(R, 7)
-				self.SR.Z = 1 if R == 0 else 0
-				self.SR.C = (~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7)) & 1
-				self.SR.S = self.SR.N ^ self.SR.V
+				SR = self.RAM[self.SREG]
+				SR = updb(SR, self.srH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+				SR = updb(SR, self.srV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
+				SR = updb(SR, self.srN, b(R, 7))
+				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+				SR = updb(SR, self.srC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+				self.RAM[self.SREG] = SR
+
 				self.debug('cpi', k, d)
 			elif opcode & 0xFC00 == 0x0400: # CPC, p. 61
 				r = b(opcode, 9) << 4
@@ -116,12 +118,16 @@ class Core():
 				Rr = self.RAM[r]
 				Rd = self.RAM[d]
 				R = Rd - Rr - self.SR.C
-				self.SR.H = (~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3)) & 1
-				self.SR.V = (b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7)) & 1
-				self.SR.N = b(R, 7)
-				self.SR.Z = 1 if R == 0 else 0
-				self.SR.C = (~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7)) & 1
-				self.SR.S = self.SR.N ^ self.SR.V
+
+				SR = self.RAM[self.SREG]
+				SR = updb(SR, self.srH, ~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+				SR = updb(SR, self.srV, b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7))
+				SR = updb(SR, self.srN, b(R, 7))
+				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+				SR = updb(SR, self.srC, ~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+				self.RAM[self.SREG] = SR
+
 				self.debug('cpc', r, d)
 			elif opcode & 0xFC07 == 0xF401: # BRNE, p. 38
 				k = b(opcode, 9) << 6
@@ -160,7 +166,10 @@ class Core():
 				self.RAM[a] |= (1 << d)
 				self.debug('sbi', a, d)
 			elif opcode & 0xFFFF == 0x9488: # CLC, p. 50
-				self.SR.C = 0
+				SR = self.RAM[self.SREG]
+				SR = updb(SR, self.srC, 0)
+				self.RAM[self.SREG] = SR
+				# self.SR.C = 0
 				self.debug('clc')
 			elif opcode & 0xFC00 == 0x1400: # CP, p. 60
 				r = b(opcode, 9) << 4
@@ -170,12 +179,16 @@ class Core():
 				Rr = self.RAM[r]
 				Rd = self.RAM[d]
 				R = Rd - Rr
-				self.SR.H = (~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3)) & 1
-				self.SR.V = (b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7)) & 1
-				self.SR.N = b(R, 7)
-				self.SR.Z = 1 if R == 0 else 0
-				self.SR.C = (~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7)) & 1
-				self.SR.S = self.SR.N ^ self.SR.V
+
+				SR = self.RAM[self.SREG]
+				SR = updb(SR, self.srH, ~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+				SR = updb(SR, self.srV, b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7))
+				SR = updb(SR, self.srN, b(R, 7))
+				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+				SR = updb(SR, self.srC, ~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+				self.RAM[self.SREG] = SR
+
 				self.debug('cp', r, d)
 			elif opcode & 0xF800 == 0xB000: # IN, p. 80
 				d = b(opcode, 8) << 4

@@ -18,3 +18,6 @@ def hl(v):
 
 def hh(v):
 	return (v & 0xF000) >> 12
+
+def updb(v, bitPos, bitValue):
+	return (~(1 << bitPos) & v) + ((bitValue & 1) << bitPos)
