@@ -177,7 +177,7 @@ class Core():
 				d = b(opcode, 2) << 2
 				d += b(opcode, 1) << 1
 				d += b(opcode, 0)
-				self.RAM[a] |= (1 << d)
+				self.RAM[0x20 + a] |= (1 << d)
 				self.debug('sbi', a, d)
 			elif opcode & 0xFFFF == 0x9488: # CLC, p. 50
 				SR = self.RAM[self.SREG]
