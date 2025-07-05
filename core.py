@@ -1,4 +1,6 @@
 from utils import *
+import vic
+import tc0
 		
 class Core():
 	def __init__(self):
@@ -21,11 +23,16 @@ class Core():
 		self.sph = 62
 		self.spl = 61
 		self.skipCycleCounter = 0
+		self.__vic = vic.vic(self.RAM)
+		self.__tc0 = tc0.tc0(self.RAM,0x53,0x52,0x51,0x50,0x57,0x56,0x40)
+		
+		self.__vic.register(0x57,0,0x56,0,0x0020)
+
 		
 	def loadProgramMemory(self):
 		words = []
 		with open('test_binary/cp_test.bin', 'rb') as pmfp:
-		# with open('q27rf.bin', 'rb') as pmfp:
+		#~ with open('q27rf.bin', 'rb') as pmfp:
 			pmData = pmfp.read()
 		for i in range(0, len(pmData), 2):
 			words.append(pmData[i] + (pmData[i + 1] << 8))
@@ -42,6 +49,13 @@ class Core():
 		if self.skipCycleCounter > 0:
 			self.skipCycleCounter -= 1
 		else:	
+			if self.RAM[self.SREG]&(1<<self.srI):
+				intpc = self.__vic.check()
+				if intpc:
+					#push self.pc
+					self.pc = intpc	
+					pass
+			
 			opcode = self.pm[self.pc]
 
 			if opcode & 0xFE0E == 0x940C: # JMP, p. 82

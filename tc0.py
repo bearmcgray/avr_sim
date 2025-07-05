@@ -11,6 +11,10 @@ class tc0:
 	TOV0=0
 	OCF0=1
 	
+	WGM00=6
+	WGM01=3
+	
+	MAX = 0xff
 	def __init__(self,mem,tccr0,tcnt0,ocr0,assr,timsk,tifr,sfior):
 		
 		self.__mem = mem
@@ -20,11 +24,11 @@ class tc0:
 		self.__mask={
 			tccr0:0xff,
 			tcnt0:0xff,
-			tccr0:0xff,
-			tccr0:0x0f,
-			tccr0:0x03,
-			tccr0:0x03,
-			tccr0:0x82,
+			ocr0:0xff,
+			assr:0x0f,
+			timsk:0x03,
+			tifr:0x03,
+			sfior:0x82,
 		}
 		
 		self.__TCCR0 = tccr0
@@ -57,7 +61,8 @@ class tc0:
 			self.__prescaler = 0
 		
 		clk_sel = self.__mem[self.__TCCR0]&0x07
-		print(clk_sel)
+		wgm = ((self.__mem[self.__TCCR0]&(1<<self.WGM01))>>(self.WGM01-1))|((self.__mem[self.__TCCR0]&(1<<self.WGM00))>>self.WGM00)
+		#~ print(clk_sel,wgm)
 		if clk_sel == 0:
 			clk = 0
 		elif clk_sel == 1:
@@ -77,13 +82,26 @@ class tc0:
 			clk = (self.__prescaler&(1<<10))>>10
 			
 		if clk!=self.__prevpresc:
-			if self.__mem[self.__TCNT0]==0xff:
-				self.__mem[self.__TIFR] |= 1<<tc0.TOV0
+			if wgm==0:
+				if self.__mem[self.__TCNT0]==self.MAX:
+					self.__mem[self.__TIFR] |= 1<<tc0.TOV0
+			elif wgm == 1:
+				raise RuntimeError("mode not implemented")
+			elif wgm == 2:
+				if self.__mem[self.__TCNT0]==self.__mem[self.__OCR0]:
+					self.__mem[self.__TIFR] |= 1<<tc0.OCF0
+				if self.__mem[self.__TCNT0]==self.MAX:
+					self.__mem[self.__TIFR] |= 1<<tc0.TOV0
+			elif wgm == 3:
+				raise RuntimeError("mode not implemented")
+			else:
+				raise RuntimeError("mode not implemented")
+				
 			self.__mem[self.__TCNT0] = (self.__mem[self.__TCNT0]+1)&self.__mask[self.__TCNT0]
 		self.__prevpresc = clk
 		
 def main():
-	mem=[1,0,0,0,0,0,0]
+	mem=[0x09,0,0x64,0,0,0,0]
 	tc = tc0(mem,0,1,2,3,4,5,6)
 	
 	while 1:
