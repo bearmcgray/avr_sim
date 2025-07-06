@@ -272,9 +272,22 @@ class Core():
 
 			elif hh_opcode == 0x9:
 				if opcode & 0xFE0F == 0x900F: # pop p. 102	
-					raise RuntimeError(f'pop')
+					d = (opcode >>4)&0x1f
+					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					sp+=1
+					self.RAM[d] = self.RAM[sp]
+					self.RAM[self.sph+0x20] = (sp>>8)&0xff
+					self.RAM[self.spl+0x20] = sp&0xff
+					
 				elif opcode & 0xFE0F == 0x920F: # push p. 102	
-					raise RuntimeError(f'push')
+					d = (opcode >>4)&0x1f
+					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					Rd = self.RAM[d]
+					self.RAM[sp] = Rd
+					sp-=1
+					self.RAM[self.sph+0x20] = (sp>>8)&0xff
+					self.RAM[self.spl+0x20] = sp&0xff
+					
 				elif opcode & 0xFE00 == 0x9200: # ST, p. 141
 					X = self.RAM[self.IARXH] << 8
 					X += self.RAM[self.IARXL]
@@ -282,21 +295,30 @@ class Core():
 					r += lh(opcode)
 					if ll(opcode) == 0xC:
 						self.RAM[X] = self.RAM[r]
+						self.debug('st', opcode, X, r)
 					elif ll(opcode) == 0xD:
 						self.RAM[X] = self.RAM[r]
 						X += 1
 						self.RAM[self.IARXH] = hbyte(X)
 						self.RAM[self.IARXL] = lbyte(X)
+						self.debug('st', opcode, X, r)
 					elif ll(opcode) == 0xE:
 						X -= 1
 						self.RAM[self.IARXH] = hbyte(X)
 						self.RAM[self.IARXL] = lbyte(X)
 						self.RAM[X] = self.RAM[r]
+						self.debug('st', opcode, X, r)
+					elif ll(opcode) == 0x0:
+						d = (opcode>>4)&0x001f	
+						self.pc += 1
+						k = self.pm[self.pc]
+						self.RAM[k]=self.RAM[d]
+						self.debug('sts', k, r)
 					else :
 						raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 						self.skipCycleCounter = 1
 
-					self.debug('st', opcode, X, r)
+					#~ self.debug('st', opcode, X, r)
 				elif opcode & 0xFE0E == 0x940C: # JMP, p. 82
 					k = b(opcode, 8) << 21
 					k += lh(opcode) << 17
@@ -418,6 +440,7 @@ class Core():
 					d = (opcode>>4)&0x001f	
 					self.pc += 1
 					k = self.pm[self.pc]
+					self.RAM[d]=self.RAM[k]
 					self.debug('lds', d, k)					
 				else:
 					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
