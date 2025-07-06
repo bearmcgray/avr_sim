@@ -50,7 +50,12 @@ class tc0:
 
 	def tick(self):
 		self.__process()
-		print("tick:",str(self.__tick).rjust(5," "),self.__mem)
+		#~ print("tick:",str(self.__tick).rjust(5," "),self.__mem)
+		mem = []
+		for i in self.__mask.keys():
+			mem.append((hex(i),self.__mem[i]))
+		
+		print("tick:",str(self.__tick).rjust(5," "),mem)
 		
 	
 	def __process(self):

@@ -41,7 +41,8 @@ class Core():
 	def loadProgramMemory(self):
 		words = []
 		# with open('test_binary/cp_test.bin', 'rb') as pmfp:
-		with open('q27rf.bin', 'rb') as pmfp:
+		#~ with open('q27rf.bin', 'rb') as pmfp:
+		with open('test_binary/tc0/tc0_test.bin', 'rb') as pmfp:
 			pmData = pmfp.read()
 		for i in range(0, len(pmData), 2):
 			words.append(pmData[i] + (pmData[i + 1] << 8))
@@ -60,9 +61,24 @@ class Core():
 		else:	
 			if self.RAM[self.SREG]&(1<<self.srI):
 				intpc = self.__vic.check()
+				#~ print("!!!",intpc)
 				if intpc:
+					#~ print(intpc)
 					#push self.pc
-					self.pc = intpc	
+					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					
+					#~ print (self.RAM[self.spl+0x20],self.RAM[self.sph+0x20])
+					
+					self.RAM[sp] = self.pc&0xff
+					sp-=1
+					self.RAM[sp] = (self.pc>>8)&0xff
+					sp-=1
+					
+					self.RAM[self.sph+0x20] = (sp>>8)&0xff
+					self.RAM[self.spl+0x20] = sp&0xff
+					
+					self.pc = intpc
+					print ("vector",intpc)	
 					pass
 			
 			opcode = self.pm[self.pc]
@@ -90,7 +106,7 @@ class Core():
 
 					self.debug('cpc', r, d)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0x1:
 				if opcode & 0xFC00 == 0x1400: # CP, p. 60
 					r = b(opcode, 9) << 4
@@ -112,9 +128,24 @@ class Core():
 
 					self.debug('cp', r, d)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0x2:
 				if opcode & 0xFC00 == 0x2400: # EOR, p. 71
+					r = b(opcode, 9) << 4
+					r += ll(opcode)
+					d = b(opcode, 8) << 4
+					d += lh(opcode)
+					R = self.RAM[r] | self.RAM[d]
+					SR = self.RAM[self.SREG]
+					SR = updb(SR, self.srV, 0)
+					SR = updb(SR, self.srN, b(R, 7))
+					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+					self.RAM[self.SREG] = SR
+					
+					self.RAM[d] = R
+					self.debug('or', r, d)
+				elif opcode & 0xFC00 == 0x2800: # OR, p. 106
 					r = b(opcode, 9) << 4
 					r += ll(opcode)
 					d = b(opcode, 8) << 4
@@ -130,7 +161,7 @@ class Core():
 					self.RAM[d] = R
 					self.debug('eor', r, d)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0x3:
 				if opcode & 0xF000 == 0x3000: # CPI, p. 63
 					k = hl(opcode) << 4
@@ -150,7 +181,7 @@ class Core():
 
 					self.debug('cpi', k, d, Rd)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0x6: # ORI, p. 107
 				k = hl(opcode) << 4
 				k += ll(opcode)
@@ -167,8 +198,28 @@ class Core():
 				self.RAM[self.SREG] = SR
 
 				self.debug('ori', k, d, Rd)
+			elif hh_opcode == 0x7: # ANDI, p. 20
+				k = hl(opcode) << 4
+				k += ll(opcode)
+				d = lh(opcode)
+				d += 16
+				Rd = self.RAM[d]
+				R = Rd & k
+				self.RAM[d] = R
+				SR = self.RAM[self.SREG]
+				SR = updb(SR, self.srV, 0)
+				SR = updb(SR, self.srN, b(R, 7))
+				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+				self.RAM[self.SREG] = SR
+
+				self.debug('andi', k, d, Rd)				
 			elif hh_opcode == 0x9:
-				if opcode & 0xFE00 == 0x9200: # ST, p. 141
+				if opcode & 0xFE0F == 0x900F: # pop p. 102	
+					raise RuntimeError(f'pop')
+				elif opcode & 0xFE0F == 0x920F: # push p. 102	
+					raise RuntimeError(f'push')
+				elif opcode & 0xFE00 == 0x9200: # ST, p. 141
 					X = self.RAM[self.IARXH] << 8
 					X += self.RAM[self.IARXL]
 					r = b(opcode, 8) << 4
@@ -185,6 +236,8 @@ class Core():
 						self.RAM[self.IARXH] = hbyte(X)
 						self.RAM[self.IARXL] = lbyte(X)
 						self.RAM[X] = self.RAM[r]
+					else :
+						raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 					self.debug('st', opcode, X, r)
 				elif opcode & 0xFE0E == 0x940C: # JMP, p. 82
 					k = b(opcode, 8) << 21
@@ -215,6 +268,27 @@ class Core():
 					SR = updb(SR, self.srC, 0)
 					self.RAM[self.SREG] = SR
 					self.debug('clc')
+				elif opcode & 0xFFFF == 0x9478: # SEI, p. 128
+					SR = self.RAM[self.SREG]
+					SR = updb(SR, self.srI, 1)
+					self.RAM[self.SREG] = SR
+					self.debug('sei')	
+				elif opcode & 0xFFFF == 0x9518: # RETI, p. 113
+					SR = self.RAM[self.SREG]
+					SR = updb(SR, self.srI, 1)
+					self.RAM[self.SREG] = SR
+					
+					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					sp+=1
+					pch = self.RAM[sp]
+					sp+=1
+					pcl = self.RAM[sp]
+					
+					self.RAM[self.sph+0x20] = (sp>>8)&0xff
+					self.RAM[self.spl+0x20] = sp&0xff
+					self.pc = ((pch<<8)|pcl)-1
+					
+					self.debug('reti')					
 				elif opcode & 0xFFFF == 0x95D8: # ELPM i, p. 69
 					Z = b(self.RAM[self.RAMPZ], 0) << 16
 					Z += self.RAM[self.IARZH] << 8
@@ -271,8 +345,21 @@ class Core():
 					d += b(opcode, 0)
 					self.RAM[0x20 + a] |= (1 << d)
 					self.debug('sbi', a, d)
+				elif opcode & 0xFF00 == 0x9800: # CBI, p. 48
+					a = lh(opcode) << 1
+					a += b(opcode, 3)
+					d = b(opcode, 2) << 2
+					d += b(opcode, 1) << 1
+					d += b(opcode, 0)
+					self.RAM[0x20 + a] &= ~(1 << d)
+					self.debug('cbi', a, d)	
+				elif opcode & 0xFE0F == 0x9000: # lds, p. 92
+					d = (opcode>>4)&0x001f	
+					self.pc += 1
+					k = self.pm[self.pc]
+					self.debug('lds', d, k)					
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0xB:
 				r = b(opcode, 8) << 4
 				r += lh(opcode)
@@ -286,21 +373,22 @@ class Core():
 					self.RAM[d + 0x20] = self.RAM[r]
 					self.debug('out', r, d)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0xC:
 				if opcode & 0xF000 == 0xC000: # RJMP, p. 114
 					r = hl(opcode) << 8
 					r += lbyte(opcode)
+					#~ print(r)
 					if (r >> 11) > 0:
 						r -= 1
 						r = ~r
-						r &= 0xFFFFFF
+						r &= 0xFFF
 						r = -r
 					self.pc += r
 					self.skipCycleCounter = 1
 					self.debug('rjmp', r * 2)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0xE:
 				if opcode & 0xF000 == 0xE000: # LDI, p. 91
 					r = hl(opcode) << 4
@@ -310,7 +398,7 @@ class Core():
 					self.RAM[d] = r
 					self.debug('ldi', r, d)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0xF:
 				if opcode & 0xFC07 == 0xF401: # BRNE, p. 38
 					k = b(opcode, 9) << 6
@@ -341,7 +429,10 @@ class Core():
 							self.pc += 1
 					self.debug('sbrs', r, d)
 				else:
-					raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			else:
-				raise RuntimeError(f'Unknown opcode {hex(opcode)}')
+				raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
+				
+			self.__tc0.tick()
+					
 			self.pc += 1

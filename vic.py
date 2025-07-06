@@ -17,7 +17,8 @@ class vic:
 			for b,v in bs.items():
 				if self.__mem[v[1]]&(1<<v[2]):
 					if self.__mem[k]&(1<<b):
-						print("---")
+						#~ print("---")
+						self.__mem[k] &= ~(1<<b)
 						return v[0]
 		
 def main():
