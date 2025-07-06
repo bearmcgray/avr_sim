@@ -84,7 +84,9 @@ class Core():
 			opcode = self.pm[self.pc]
 			hh_opcode = hh(opcode)
 			if hh_opcode == 0x0:
-				if opcode & 0xFC00 == 0x0400: # CPC, p. 61
+				if opcode == 0x0: # NOP, p. 105
+					self.debug('nop')
+				elif opcode & 0xFC00 == 0x0400: # CPC, p. 61
 					r = b(opcode, 9) << 4
 					r += ll(opcode)
 					d = b(opcode, 8) << 4
@@ -130,7 +132,22 @@ class Core():
 				else:
 					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 			elif hh_opcode == 0x2:
-				if opcode & 0xFC00 == 0x2400: # EOR, p. 71
+				if opcode & 0xFC00 == 0x2000: # AND, p. 19
+					r = b(opcode, 9) << 4
+					r += ll(opcode)
+					d = b(opcode, 8) << 4
+					d += lh(opcode)
+					R = self.RAM[r] & self.RAM[d]
+					SR = self.RAM[self.SREG]
+					SR = updb(SR, self.srV, 0)
+					SR = updb(SR, self.srN, b(R, 7))
+					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+					self.RAM[self.SREG] = SR
+					
+					self.RAM[d] = R
+					self.debug('and', r, d)
+				elif opcode & 0xFC00 == 0x2400: # EOR, p. 71
 					r = b(opcode, 9) << 4
 					r += ll(opcode)
 					d = b(opcode, 8) << 4
@@ -182,6 +199,45 @@ class Core():
 					self.debug('cpi', k, d, Rd)
 				else:
 					raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
+
+			elif hh_opcode == 0x4: # SBCI, p. 119
+				k = hl(opcode) << 4
+				k += ll(opcode)
+				d = lh(opcode)
+				d += 16
+				Rd = self.RAM[d]
+				SR = self.RAM[self.SREG]
+				R = (Rd - k - b(SR, self.srC)) & 0xFF
+				self.RAM[d] = R
+				
+				SR = updb(SR, self.srH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+				SR = updb(SR, self.srV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
+				SR = updb(SR, self.srN, b(R, 7))
+				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+				SR = updb(SR, self.srC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+				self.RAM[self.SREG] = SR
+
+				self.debug('sbci', k, d, R)
+			elif hh_opcode == 0x5: # SUBI, p. 150
+				k = hl(opcode) << 4
+				k += ll(opcode)
+				d = lh(opcode)
+				d += 16
+				Rd = self.RAM[d]
+				R = (Rd - k) & 0xFF
+				self.RAM[d] = R
+
+				SR = self.RAM[self.SREG]
+				SR = updb(SR, self.srH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+				SR = updb(SR, self.srV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
+				SR = updb(SR, self.srN, b(R, 7))
+				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
+				SR = updb(SR, self.srC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
+				self.RAM[self.SREG] = SR
+
+				self.debug('subi', k, d, R)
 			elif hh_opcode == 0x6: # ORI, p. 107
 				k = hl(opcode) << 4
 				k += ll(opcode)
@@ -212,8 +268,8 @@ class Core():
 				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
 				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
 				self.RAM[self.SREG] = SR
+				self.debug('andi', k, d, Rd)
 
-				self.debug('andi', k, d, Rd)				
 			elif hh_opcode == 0x9:
 				if opcode & 0xFE0F == 0x900F: # pop p. 102	
 					raise RuntimeError(f'pop')
@@ -238,6 +294,8 @@ class Core():
 						self.RAM[X] = self.RAM[r]
 					else :
 						raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
+						self.skipCycleCounter = 1
+
 					self.debug('st', opcode, X, r)
 				elif opcode & 0xFE0E == 0x940C: # JMP, p. 82
 					k = b(opcode, 8) << 21
@@ -297,6 +355,7 @@ class Core():
 						self.RAM[0] = hbyte(self.pm[Z // 2])
 					else:
 						self.RAM[0] = lbyte(self.pm[Z // 2])
+					self.skipCycleCounter = 2
 					self.debug('elpm i', Z)
 				elif opcode & 0xFE0F == 0x9006: # ELPM ii, p. 69
 					Z = b(self.RAM[self.RAMPZ], 0) << 16
@@ -308,6 +367,7 @@ class Core():
 						self.RAM[d] = hbyte(self.pm[Z // 2])
 					else:
 						self.RAM[d] = lbyte(self.pm[Z // 2])
+					self.skipCycleCounter = 2
 					self.debug('elpm ii', Z, d)
 				elif opcode & 0xFE0F == 0x9007: # ELPM iii, p. 69
 					Z = b(self.RAM[self.RAMPZ], 0) << 16
@@ -323,6 +383,7 @@ class Core():
 					self.RAM[self.RAMPZ] = b(Z, 16)
 					self.RAM[self.IARZH] = (Z & 0xFFFF) >> 8
 					self.RAM[self.IARZL] = Z & 0xFF
+					self.skipCycleCounter = 2
 					self.debug('elpm iii', Z, d)
 				elif opcode & 0xFFFF == 0x9508: # RET, p. 112
 					sp = self.RAM[self.sph + 0x20] << 8
