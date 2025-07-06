@@ -1,5 +1,7 @@
 __pycache__
-/test_binary/*.bin
-/test_binary/*.elf
-/test_binary/*.lst
-/test_binary/*.o
+/test_binary/**/*.bin
+/test_binary/**/*.elf
+/test_binary/**/*.lst
+/test_binary/**/*.hex
+/test_binary/**/*.o
+out.txt
