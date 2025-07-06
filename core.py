@@ -29,8 +29,8 @@ class Core():
 		self.RAM = [0 for _ in range(RAM_SIZE)]
 		
 		self.pc = 0
-		self.sph = 0x3E
-		self.spl = 0x3D
+		self.sph = 0x5E
+		self.spl = 0x5D
 		self.skipCycleCounter = 0
 		self.__vic = vic.vic(self.RAM)
 		self.__tc0 = tc0.tc0(self.RAM,0x53,0x52,0x51,0x50,0x57,0x56,0x40)
@@ -65,17 +65,17 @@ class Core():
 				if intpc:
 					#~ print(intpc)
 					#push self.pc
-					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
 					
-					#~ print (self.RAM[self.spl+0x20],self.RAM[self.sph+0x20])
+					#~ print (self.RAM[self.spl],self.RAM[self.sph])
 					
 					self.RAM[sp] = self.pc&0xff
 					sp-=1
 					self.RAM[sp] = (self.pc>>8)&0xff
 					sp-=1
 					
-					self.RAM[self.sph+0x20] = (sp>>8)&0xff
-					self.RAM[self.spl+0x20] = sp&0xff
+					self.RAM[self.sph] = (sp>>8)&0xff
+					self.RAM[self.spl] = sp&0xff
 					
 					self.pc = intpc
 					print ("vector",intpc)	
@@ -271,23 +271,23 @@ class Core():
 				self.debug('andi', k, d, Rd)
 
 			elif hh_opcode == 0x9:
-				if opcode & 0xFE0F == 0x900F: # pop p. 102	
+				if opcode & 0xFE0F == 0x900F: # POP, p. 109	
 					d = (opcode >>4)&0x1f
-					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
 					sp+=1
 					self.RAM[d] = self.RAM[sp]
-					self.RAM[self.sph+0x20] = (sp>>8)&0xff
-					self.RAM[self.spl+0x20] = sp&0xff
-					
-				elif opcode & 0xFE0F == 0x920F: # push p. 102	
+					self.RAM[self.sph] = (sp>>8)&0xff
+					self.RAM[self.spl] = sp&0xff
+					self.debug('pop', d)
+				elif opcode & 0xFE0F == 0x920F: # PUSH, p. 110	
 					d = (opcode >>4)&0x1f
-					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
 					Rd = self.RAM[d]
 					self.RAM[sp] = Rd
 					sp-=1
-					self.RAM[self.sph+0x20] = (sp>>8)&0xff
-					self.RAM[self.spl+0x20] = sp&0xff
-					
+					self.RAM[self.sph] = (sp>>8)&0xff
+					self.RAM[self.spl] = sp&0xff
+					self.debug('push', d)
 				elif opcode & 0xFE00 == 0x9200: # ST, p. 141
 					X = self.RAM[self.IARXH] << 8
 					X += self.RAM[self.IARXL]
@@ -331,14 +331,14 @@ class Core():
 					self.skipCycleCounter = 2
 				elif opcode & 0xFE0E == 0x940E: # CALL, p. 47
 					k = self.pm[self.pc + 1]
-					sp = self.RAM[self.sph + 0x20] << 8
-					sp += self.RAM[self.spl + 0x20]
+					sp = self.RAM[self.sph] << 8
+					sp += self.RAM[self.spl]
 					
 					self.RAM[sp] = hbyte(self.pc + 2)
 					self.RAM[sp - 1] = lbyte(self.pc + 2)
 					sp += -2
-					self.RAM[self.sph + 0x20] = hbyte(sp)
-					self.RAM[self.spl + 0x20] = lbyte(sp)
+					self.RAM[self.sph] = hbyte(sp)
+					self.RAM[self.spl] = lbyte(sp)
 
 					self.skipCycleCounter = 2
 					self.pc = k - 1
@@ -358,14 +358,14 @@ class Core():
 					SR = updb(SR, self.srI, 1)
 					self.RAM[self.SREG] = SR
 					
-					sp = (self.RAM[self.sph+0x20]<<8)|self.RAM[self.spl+0x20]
+					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
 					sp+=1
 					pch = self.RAM[sp]
 					sp+=1
 					pcl = self.RAM[sp]
 					
-					self.RAM[self.sph+0x20] = (sp>>8)&0xff
-					self.RAM[self.spl+0x20] = sp&0xff
+					self.RAM[self.sph] = (sp>>8)&0xff
+					self.RAM[self.spl] = sp&0xff
 					self.pc = ((pch<<8)|pcl)-1
 					
 					self.debug('reti')					
@@ -408,14 +408,14 @@ class Core():
 					self.skipCycleCounter = 2
 					self.debug('elpm iii', Z, d)
 				elif opcode & 0xFFFF == 0x9508: # RET, p. 112
-					sp = self.RAM[self.sph + 0x20] << 8
-					sp += self.RAM[self.spl + 0x20]
+					sp = self.RAM[self.sph] << 8
+					sp += self.RAM[self.spl]
 					sp += 2
 					pc = self.RAM[sp] << 8
 					pc += self.RAM[sp - 1]
 
-					self.RAM[self.sph + 0x20] = hbyte(sp)
-					self.RAM[self.spl + 0x20] = lbyte(sp)
+					self.RAM[self.sph] = hbyte(sp)
+					self.RAM[self.spl] = lbyte(sp)
 
 					self.skipCycleCounter = 3
 					self.pc = pc - 1
