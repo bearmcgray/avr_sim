@@ -1,7 +1,8 @@
 from utils import *
 import vic
 import tc0
-		
+from iom128 import *
+
 class Core():
 	def __init__(self):
 		self.pm = self.loadProgramMemory()
