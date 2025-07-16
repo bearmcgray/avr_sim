@@ -1,11 +1,10 @@
 from utils import *
 import vic
-import tc0
 from iom128 import *
 
 class Core():
-	def __init__(self):
-		self.pm = self.loadProgramMemory()
+	def __init__(self, pm, RAM):
+		self.pm = pm
 		
 		self.SREG = 0x5F
 		self.RAMPZ = 0x5B
@@ -26,29 +25,16 @@ class Core():
 		self.srT = 6
 		self.srI = 7
 
-		RAM_SIZE = (1 << 12) + 0x100
-		self.RAM = [0 for _ in range(RAM_SIZE)]
+		self.RAM = RAM
 		
 		self.pc = 0
 		self.sph = 0x5E
 		self.spl = 0x5D
 		self.skipCycleCounter = 0
-		self.__vic = vic.vic(self.RAM)
-		self.__tc0 = tc0.tc0(self.RAM,0x53,0x52,0x51,0x50,0x57,0x56,0x40)
-		
-		self.__vic.register(0x57,0,0x56,0,0x0020)
 
-		
-	def loadProgramMemory(self):
-		words = []
-		# with open('test_binary/cp_test.bin', 'rb') as pmfp:
-		#~ with open('q27rf.bin', 'rb') as pmfp:
-		with open('test_binary/tc0/tc0_test.bin', 'rb') as pmfp:
-			pmData = pmfp.read()
-		for i in range(0, len(pmData), 2):
-			words.append(pmData[i] + (pmData[i + 1] << 8))
-		print('Program memory loaded,', len(words), 'words')
-		return words
+		self.__vic = vic.vic(self.RAM)
+		self.__vic.register(0x57,0,0x56,0,0x0020)
+	
 
 	def debug(self, *args):
 		hexedArgs = [hex(arg) if type(arg) == int else arg for arg in args ]
@@ -79,7 +65,7 @@ class Core():
 					self.RAM[self.spl] = sp&0xff
 					
 					self.pc = intpc
-					print ("vector",intpc)	
+					self.debug("vector",intpc)	
 					pass
 			
 			opcode = self.pm[self.pc]
@@ -518,6 +504,6 @@ class Core():
 			else:
 				raise RuntimeError(f'Unknown opcode {hex(opcode)}@{hex(self.pc*2)}')
 				
-			self.__tc0.tick()
+	
 					
 			self.pc += 1
