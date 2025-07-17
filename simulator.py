@@ -14,7 +14,7 @@ class Simulator():
 		self.__tc0 = tc0.tc0(self.__mem.RAM,TCCR0,TCNT0,OCR0,ASSR,TIMSK,TIFR,SFIOR)
 
 	def run(self):
-		for cycle in range(1000000):
+		for cycle in range(10000000):
 			if cycle % 1000000 == 0:
 				print('cycle', cycle)
 			self.__core.tick()

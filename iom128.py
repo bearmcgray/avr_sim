@@ -182,9 +182,13 @@ RAMPZ =        0X5B
 # XDIV Divide control register
 XDIV =         0X5C
 
-# 0x3D..0x3E SP
+# Stack Pointer Register
+SP =           0x5D
+SPL =          0x5D
+SPH =          0x5E
 
-# 0x3F SREG
+# Status Register
+SREG =         0x5F
 
 # Extended I/O registers
 
@@ -309,6 +313,16 @@ UCSR1C =       0x9D
 
 #   The Register Bit names are represented by their bit number (0-7).
 
+
+# Status Register - SREG
+SREGI =        7
+SREGT =        6
+SREGH =        5
+SREGS =        4
+SREGV =        3
+SREGN =        2
+SREGZ =        1
+SREGC =        0
 
 # 2-wire Control Register - TWCR
 TWINT =        7

@@ -5,10 +5,8 @@ from iom128 import *
 class Core():
 	def __init__(self, pm, RAM):
 		self.pm = pm
+		self.RAM = RAM
 		
-		self.SREG = 0x5F
-		self.RAMPZ = 0x5B
-
 		self.IARXH = 27
 		self.IARXL = 26
 		self.IARYH = 29
@@ -16,20 +14,8 @@ class Core():
 		self.IARZH = 31
 		self.IARZL = 30
 
-		self.srC = 0
-		self.srZ = 1
-		self.srN = 2
-		self.srV = 3
-		self.srS = 4
-		self.srH = 5
-		self.srT = 6
-		self.srI = 7
-
-		self.RAM = RAM
-		
 		self.pc = 0
-		self.sph = 0x5E
-		self.spl = 0x5D
+		
 		self.skipCycleCounter = 0
 
 		self.__vic = vic.vic(self.RAM)
@@ -37,8 +23,8 @@ class Core():
 	
 
 	def debug(self, *args):
-		hexedArgs = [hex(arg) if type(arg) == int else arg for arg in args ]
-		print(hex(self.pc*2), f"{self.RAM[self.SREG]:#04x}", *hexedArgs)
+		# hexedArgs = [hex(arg) if type(arg) == int else arg for arg in args ]
+		# print(hex(self.pc*2), f"{self.RAM[SREG]:#04x}", *hexedArgs)
 		pass
 
 
@@ -46,23 +32,23 @@ class Core():
 		if self.skipCycleCounter > 0:
 			self.skipCycleCounter -= 1
 		else:	
-			if self.RAM[self.SREG]&(1<<self.srI):
+			if self.RAM[SREG]&(1<<SREGI):
 				intpc = self.__vic.check()
 				#~ print("!!!",intpc)
 				if intpc:
 					#~ print(intpc)
 					#push self.pc
-					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
+					sp = (self.RAM[SPH]<<8)|self.RAM[SPL]
 					
-					#~ print (self.RAM[self.spl],self.RAM[self.sph])
-					
+					#~ print (self.RAM[SPL],self.RAM[SPH])
+					# TODO check endians!!!--------------------------
 					self.RAM[sp] = self.pc&0xff
 					sp-=1
 					self.RAM[sp] = (self.pc>>8)&0xff
 					sp-=1
 					
-					self.RAM[self.sph] = (sp>>8)&0xff
-					self.RAM[self.spl] = sp&0xff
+					self.RAM[SPH] = (sp>>8)&0xff
+					self.RAM[SPL] = sp&0xff
 					
 					self.pc = intpc
 					self.debug("vector",intpc)	
@@ -81,17 +67,17 @@ class Core():
 					Rr = self.RAM[r]
 					Rd = self.RAM[d]
 					
-					SR = self.RAM[self.SREG]
-					R = Rd - Rr - b(SR, self.srC)
+					SR = self.RAM[SREG]
+					R = Rd - Rr - b(SR, SREGC)
 
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srH, ~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
-					SR = updb(SR, self.srV, b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7))
-					SR = updb(SR, self.srN, b(R, 7))
-					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-					SR = updb(SR, self.srC, ~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
-					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGH, ~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+					SR = updb(SR, SREGV, b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7))
+					SR = updb(SR, SREGN, b(R, 7))
+					SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+					SR = updb(SR, SREGC, ~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+					SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+					self.RAM[SREG] = SR
 
 					self.debug('cpc', r, d)
 				else:
@@ -106,14 +92,14 @@ class Core():
 					Rd = self.RAM[d]
 					R = Rd - Rr
 
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srH, ~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
-					SR = updb(SR, self.srV, b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7))
-					SR = updb(SR, self.srN, b(R, 7))
-					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-					SR = updb(SR, self.srC, ~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
-					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGH, ~b(Rd, 3) & b(Rr, 3) | b(Rr, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+					SR = updb(SR, SREGV, b(Rd, 7) & ~b(Rr, 7) & ~b(R, 7) | ~b(Rd, 7) & b(Rr, 7) & b(R, 7))
+					SR = updb(SR, SREGN, b(R, 7))
+					SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+					SR = updb(SR, SREGC, ~b(Rd, 7) & b(Rr, 7) | b(Rr, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+					SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+					self.RAM[SREG] = SR
 
 					self.debug('cp', r, d)
 				else:
@@ -125,12 +111,12 @@ class Core():
 					d = b(opcode, 8) << 4
 					d += lh(opcode)
 					R = self.RAM[r] & self.RAM[d]
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srV, 0)
-					SR = updb(SR, self.srN, b(R, 7))
-					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGV, 0)
+					SR = updb(SR, SREGN, b(R, 7))
+					SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+					SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+					self.RAM[SREG] = SR
 					
 					self.RAM[d] = R
 					self.debug('and', r, d)
@@ -140,12 +126,12 @@ class Core():
 					d = b(opcode, 8) << 4
 					d += lh(opcode)
 					R = self.RAM[r] | self.RAM[d]
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srV, 0)
-					SR = updb(SR, self.srN, b(R, 7))
-					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGV, 0)
+					SR = updb(SR, SREGN, b(R, 7))
+					SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+					SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+					self.RAM[SREG] = SR
 					
 					self.RAM[d] = R
 					self.debug('or', r, d)
@@ -155,12 +141,12 @@ class Core():
 					d = b(opcode, 8) << 4
 					d += lh(opcode)
 					R = self.RAM[r] ^ self.RAM[d]
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srV, 0)
-					SR = updb(SR, self.srN, b(R, 7))
-					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGV, 0)
+					SR = updb(SR, SREGN, b(R, 7))
+					SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+					SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+					self.RAM[SREG] = SR
 					
 					self.RAM[d] = R
 					self.debug('eor', r, d)
@@ -174,14 +160,14 @@ class Core():
 					d += 16
 					Rd = self.RAM[d]
 					R = Rd - k
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
-					SR = updb(SR, self.srV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
-					SR = updb(SR, self.srN, b(R, 7))
-					SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-					SR = updb(SR, self.srC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
-					SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+					SR = updb(SR, SREGV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
+					SR = updb(SR, SREGN, b(R, 7))
+					SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+					SR = updb(SR, SREGC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+					SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+					self.RAM[SREG] = SR
 
 					self.debug('cpi', k, d, Rd)
 				else:
@@ -193,17 +179,17 @@ class Core():
 				d = lh(opcode)
 				d += 16
 				Rd = self.RAM[d]
-				SR = self.RAM[self.SREG]
-				R = (Rd - k - b(SR, self.srC)) & 0xFF
+				SR = self.RAM[SREG]
+				R = (Rd - k - b(SR, SREGC)) & 0xFF
 				self.RAM[d] = R
 				
-				SR = updb(SR, self.srH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
-				SR = updb(SR, self.srV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
-				SR = updb(SR, self.srN, b(R, 7))
-				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-				SR = updb(SR, self.srC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
-				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-				self.RAM[self.SREG] = SR
+				SR = updb(SR, SREGH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+				SR = updb(SR, SREGV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
+				SR = updb(SR, SREGN, b(R, 7))
+				SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+				SR = updb(SR, SREGC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+				SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+				self.RAM[SREG] = SR
 
 				self.debug('sbci', k, d, R)
 			elif hh_opcode == 0x5: # SUBI, p. 150
@@ -215,14 +201,14 @@ class Core():
 				R = (Rd - k) & 0xFF
 				self.RAM[d] = R
 
-				SR = self.RAM[self.SREG]
-				SR = updb(SR, self.srH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
-				SR = updb(SR, self.srV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
-				SR = updb(SR, self.srN, b(R, 7))
-				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-				SR = updb(SR, self.srC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
-				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-				self.RAM[self.SREG] = SR
+				SR = self.RAM[SREG]
+				SR = updb(SR, SREGH, ~b(Rd, 3) & b(k, 3) | b(k, 3) & b(R, 3) | b(R, 3) & ~b(Rd, 3))
+				SR = updb(SR, SREGV, b(Rd, 7) & ~b(k, 7) & ~b(R, 7) | ~b(Rd, 7) & b(k, 7) & b(R, 7))
+				SR = updb(SR, SREGN, b(R, 7))
+				SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+				SR = updb(SR, SREGC, ~b(Rd, 7) & b(k, 7) | b(k, 7) & b(R, 7) | b(R, 7) & ~b(Rd, 7))
+				SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+				self.RAM[SREG] = SR
 
 				self.debug('subi', k, d, R)
 			elif hh_opcode == 0x6: # ORI, p. 107
@@ -233,12 +219,12 @@ class Core():
 				Rd = self.RAM[d]
 				R = Rd | k
 				self.RAM[d] = R
-				SR = self.RAM[self.SREG]
-				SR = updb(SR, self.srV, 0)
-				SR = updb(SR, self.srN, b(R, 7))
-				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-				self.RAM[self.SREG] = SR
+				SR = self.RAM[SREG]
+				SR = updb(SR, SREGV, 0)
+				SR = updb(SR, SREGN, b(R, 7))
+				SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+				SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+				self.RAM[SREG] = SR
 
 				self.debug('ori', k, d, Rd)
 			elif hh_opcode == 0x7: # ANDI, p. 20
@@ -249,31 +235,31 @@ class Core():
 				Rd = self.RAM[d]
 				R = Rd & k
 				self.RAM[d] = R
-				SR = self.RAM[self.SREG]
-				SR = updb(SR, self.srV, 0)
-				SR = updb(SR, self.srN, b(R, 7))
-				SR = updb(SR, self.srZ, 1 if R == 0 else 0)
-				SR = updb(SR, self.srS, b(SR, self.srN) ^ b(SR, self.srV))
-				self.RAM[self.SREG] = SR
+				SR = self.RAM[SREG]
+				SR = updb(SR, SREGV, 0)
+				SR = updb(SR, SREGN, b(R, 7))
+				SR = updb(SR, SREGZ, 1 if R == 0 else 0)
+				SR = updb(SR, SREGS, b(SR, SREGN) ^ b(SR, SREGV))
+				self.RAM[SREG] = SR
 				self.debug('andi', k, d, Rd)
 
 			elif hh_opcode == 0x9:
 				if opcode & 0xFE0F == 0x900F: # POP, p. 109	
 					d = (opcode >>4)&0x1f
-					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
+					sp = (self.RAM[SPH]<<8)|self.RAM[SPL]
 					sp+=1
 					self.RAM[d] = self.RAM[sp]
-					self.RAM[self.sph] = (sp>>8)&0xff
-					self.RAM[self.spl] = sp&0xff
+					self.RAM[SPH] = (sp>>8)&0xff
+					self.RAM[SPL] = sp&0xff
 					self.debug('pop', d)
 				elif opcode & 0xFE0F == 0x920F: # PUSH, p. 110	
 					d = (opcode >>4)&0x1f
-					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
+					sp = (self.RAM[SPH]<<8)|self.RAM[SPL]
 					Rd = self.RAM[d]
 					self.RAM[sp] = Rd
 					sp-=1
-					self.RAM[self.sph] = (sp>>8)&0xff
-					self.RAM[self.spl] = sp&0xff
+					self.RAM[SPH] = (sp>>8)&0xff
+					self.RAM[SPL] = sp&0xff
 					self.debug('push', d)
 				elif opcode & 0xFE00 == 0x9200: # ST, p. 141
 					X = self.RAM[self.IARXH] << 8
@@ -318,46 +304,46 @@ class Core():
 					self.skipCycleCounter = 2
 				elif opcode & 0xFE0E == 0x940E: # CALL, p. 47
 					k = self.pm[self.pc + 1]
-					sp = self.RAM[self.sph] << 8
-					sp += self.RAM[self.spl]
+					sp = self.RAM[SPH] << 8
+					sp += self.RAM[SPL]
 					
 					self.RAM[sp] = hbyte(self.pc + 2)
 					self.RAM[sp - 1] = lbyte(self.pc + 2)
 					sp += -2
-					self.RAM[self.sph] = hbyte(sp)
-					self.RAM[self.spl] = lbyte(sp)
+					self.RAM[SPH] = hbyte(sp)
+					self.RAM[SPL] = lbyte(sp)
 
 					self.skipCycleCounter = 2
 					self.pc = k - 1
 					self.debug('call', k * 2)
 				elif opcode & 0xFFFF == 0x9488: # CLC, p. 50
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srC, 0)
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGC, 0)
+					self.RAM[SREG] = SR
 					self.debug('clc')
 				elif opcode & 0xFFFF == 0x9478: # SEI, p. 128
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srI, 1)
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGI, 1)
+					self.RAM[SREG] = SR
 					self.debug('sei')	
 				elif opcode & 0xFFFF == 0x9518: # RETI, p. 113
-					SR = self.RAM[self.SREG]
-					SR = updb(SR, self.srI, 1)
-					self.RAM[self.SREG] = SR
+					SR = self.RAM[SREG]
+					SR = updb(SR, SREGI, 1)
+					self.RAM[SREG] = SR
 					
-					sp = (self.RAM[self.sph]<<8)|self.RAM[self.spl]
+					sp = (self.RAM[SPH]<<8)|self.RAM[SPL]
 					sp+=1
 					pch = self.RAM[sp]
 					sp+=1
 					pcl = self.RAM[sp]
 					
-					self.RAM[self.sph] = (sp>>8)&0xff
-					self.RAM[self.spl] = sp&0xff
+					self.RAM[SPH] = (sp>>8)&0xff
+					self.RAM[SPL] = sp&0xff
 					self.pc = ((pch<<8)|pcl)-1
 					
 					self.debug('reti')					
 				elif opcode & 0xFFFF == 0x95D8: # ELPM i, p. 69
-					Z = b(self.RAM[self.RAMPZ], 0) << 16
+					Z = b(self.RAM[RAMPZ], 0) << 16
 					Z += self.RAM[self.IARZH] << 8
 					Z += self.RAM[self.IARZL]
 					if Z % 2:
@@ -367,7 +353,7 @@ class Core():
 					self.skipCycleCounter = 2
 					self.debug('elpm i', Z)
 				elif opcode & 0xFE0F == 0x9006: # ELPM ii, p. 69
-					Z = b(self.RAM[self.RAMPZ], 0) << 16
+					Z = b(self.RAM[RAMPZ], 0) << 16
 					Z += self.RAM[self.IARZH] << 8
 					Z += self.RAM[self.IARZL]
 					d = b(opcode, 8) << 4
@@ -379,7 +365,7 @@ class Core():
 					self.skipCycleCounter = 2
 					self.debug('elpm ii', Z, d)
 				elif opcode & 0xFE0F == 0x9007: # ELPM iii, p. 69
-					Z = b(self.RAM[self.RAMPZ], 0) << 16
+					Z = b(self.RAM[RAMPZ], 0) << 16
 					Z += self.RAM[self.IARZH] << 8
 					Z += self.RAM[self.IARZL]
 					d = b(opcode, 8) << 4
@@ -389,20 +375,20 @@ class Core():
 					else:
 						self.RAM[d] = lbyte(self.pm[Z // 2])
 					Z += 1
-					self.RAM[self.RAMPZ] = b(Z, 16)
+					self.RAM[RAMPZ] = b(Z, 16)
 					self.RAM[self.IARZH] = (Z & 0xFFFF) >> 8
 					self.RAM[self.IARZL] = Z & 0xFF
 					self.skipCycleCounter = 2
 					self.debug('elpm iii', Z, d)
 				elif opcode & 0xFFFF == 0x9508: # RET, p. 112
-					sp = self.RAM[self.sph] << 8
-					sp += self.RAM[self.spl]
+					sp = self.RAM[SPH] << 8
+					sp += self.RAM[SPL]
 					sp += 2
 					pc = self.RAM[sp] << 8
 					pc += self.RAM[sp - 1]
 
-					self.RAM[self.sph] = hbyte(sp)
-					self.RAM[self.spl] = lbyte(sp)
+					self.RAM[SPH] = hbyte(sp)
+					self.RAM[SPL] = lbyte(sp)
 
 					self.skipCycleCounter = 3
 					self.pc = pc - 1
@@ -481,7 +467,7 @@ class Core():
 						k = ~k
 						k &= 0x7F
 						k = -k
-					if b(self.RAM[self.SREG], self.srZ) == 0:
+					if b(self.RAM[SREG], SREGZ) == 0:
 						self.pc += k
 						self.skipCycleCounter = 1
 					self.debug('brne', k*2)
